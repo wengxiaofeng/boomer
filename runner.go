@@ -44,7 +44,7 @@ type runner struct {
 
 	// close this channel will stop all goroutines used in runner.
 	closeChan chan bool
-
+	reload func() []*Task
 	outputs []Output
 }
 
@@ -246,7 +246,8 @@ func newLocalRunner(tasks []*Task, rateLimiter RateLimiter, spawnCount int, spaw
 	return r
 }
 
-func (r *localRunner) run() {
+func (r *localRunner) run(reload func() []*Task) {
+	r.reload = reload
 	r.state = stateInit
 	r.stats.start()
 
@@ -361,6 +362,8 @@ func (r *slaveRunner) onMessage(msg *message) {
 	case stateInit:
 		switch msg.Type {
 		case "spawn":
+			task := r.reload()
+			r.tasks = task
 			r.state = stateSpawning
 			r.onSpawnMessage(msg)
 		case "quit":
@@ -412,8 +415,9 @@ func (r *slaveRunner) startListener() {
 	}()
 }
 
-func (r *slaveRunner) run() {
+func (r *slaveRunner) run(reload func() []*Task) {
 	r.state = stateInit
+	r.reload = reload
 	r.client = newClient(r.masterHost, r.masterPort, r.nodeID)
 
 	err := r.client.connect()
