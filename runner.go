@@ -372,7 +372,7 @@ func (r *slaveRunner) onMessage(msg *message) {
 		switch msg.Type {
 		case "spawn":
 			r.state = stateSpawning
-			r.stop()
+			//r.stop()
 			r.onSpawnMessage(msg)
 		case "stop":
 			r.stop()
