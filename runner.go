@@ -37,6 +37,7 @@ type runner struct {
 
 	numClients int32
 	spawnRate  float64
+	userCount int32
 
 	// all running workers(goroutines) will select on this channel.
 	// close this channel will stop all running workers.
@@ -342,6 +343,15 @@ func (r *slaveRunner) onSpawnMessage(msg *message) {
 		workers = int(users.(uint64))
 	} else {
 		workers = int(users.(int64))
+	}
+
+	if workers < int(r.userCount) {
+		log.Println("并发数目减少")
+		r.stop()
+		r.userCount = int32(workers)
+	} else {
+		workers = workers - int(r.userCount)
+		r.userCount = r.userCount + int32(workers)
 	}
 
 	if r.rateLimitEnabled {
