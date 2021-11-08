@@ -35,9 +35,9 @@ type runner struct {
 	rateLimitEnabled bool
 	stats            *requestStats
 
-	numClients int32
+	numClients int32  //当前真正的client数
 	spawnRate  float64
-	userCount int32
+	userCount int32   //预期的client数
 
 	// all running workers(goroutines) will select on this channel.
 	// close this channel will stop all running workers.
@@ -206,7 +206,7 @@ func (r *runner) startSpawning(spawnCount int, spawnRate float64, spawnCompleteF
 	r.stopChan = make(chan bool)
 
 	r.spawnRate = spawnRate
-	r.numClients = 0
+	//r.numClients = 0
 
 	go r.spawnWorkers(spawnCount, r.stopChan, spawnCompleteFunc)
 }
@@ -333,7 +333,7 @@ func (r *slaveRunner) close() {
 	close(r.closeChan)
 }
 
-func (r *slaveRunner) onSpawnMessage(msg *message) {
+func (r *slaveRunner) onSpawnMessage(msg *message, state string) {
 	r.client.sendChannel() <- newMessage("spawning", nil, r.nodeID)
 	rate := msg.Data["spawn_rate"]
 	users := msg.Data["num_users"]
@@ -344,14 +344,22 @@ func (r *slaveRunner) onSpawnMessage(msg *message) {
 	} else {
 		workers = int(users.(int64))
 	}
-
-	if workers < int(r.userCount) {
-		log.Println("并发数目减少")
-		r.stop()
-		r.userCount = int32(workers)
+	log.Printf("workers :%d" , workers)
+	if state == stateRunning {
+		if workers < int(r.userCount)  {
+			log.Printf("并发数目减少")
+			r.stop()
+			r.userCount = int32(workers)
+			r.numClients = 0
+		} else {
+			workers = workers - int(r.userCount)
+			r.userCount = r.userCount + int32(workers)
+			log.Printf("本次增加%d，一共：%d", workers, r.userCount)
+		}
 	} else {
-		workers = workers - int(r.userCount)
-		r.userCount = r.userCount + int32(workers)
+		r.numClients = 0
+		r.userCount = int32(workers)
+		log.Printf("初始workers :%d", workers)
 	}
 
 	if r.rateLimitEnabled {
@@ -372,7 +380,7 @@ func (r *slaveRunner) onMessage(msg *message) {
 		switch msg.Type {
 		case "spawn":
 			r.state = stateSpawning
-			r.onSpawnMessage(msg)
+			r.onSpawnMessage(msg, stateSpawning)
 		case "quit":
 			Events.Publish("boomer:quit")
 		}
@@ -383,7 +391,7 @@ func (r *slaveRunner) onMessage(msg *message) {
 		case "spawn":
 			r.state = stateSpawning
 			//r.stop()
-			r.onSpawnMessage(msg)
+			r.onSpawnMessage(msg, stateRunning)
 		case "stop":
 			r.stop()
 			r.state = stateStopped
@@ -401,7 +409,7 @@ func (r *slaveRunner) onMessage(msg *message) {
 		switch msg.Type {
 		case "spawn":
 			r.state = stateSpawning
-			r.onSpawnMessage(msg)
+			r.onSpawnMessage(msg, stateStopped)
 		case "quit":
 			Events.Publish("boomer:quit")
 			r.state = stateInit

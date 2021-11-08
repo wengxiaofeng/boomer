@@ -1,6 +1,7 @@
 package boomer
 
 import (
+	"log"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -95,6 +96,7 @@ func TestLocalRunner(t *testing.T) {
 }
 
 func TestSpawnWorkers(t *testing.T) {
+	log.Printf("start aaaa")
 	taskA := &Task{
 		Weight: 10,
 		Fn: func() {
@@ -377,7 +379,7 @@ func TestOnSpawnMessage(t *testing.T) {
 	runner.onSpawnMessage(newMessage("spawn", map[string]interface{}{
 		"spawn_rate": float64(20),
 		"num_users":  int64(20),
-	}, runner.nodeID))
+	}, runner.nodeID), stateInit)
 
 	if workers != 20 {
 		t.Error("workers should be overwrote by callback function, expected: 20, was:", workers)
